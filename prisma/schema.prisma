@@ -1,0 +1,204 @@
+// Yare Cafe System - ERP Schema
+// Using Neon PostgreSQL as primary database
+
+generator client {
+  provider = "prisma-client"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============= ENUMS =============
+
+enum Role {
+  ADMIN
+  WAREHOUSE
+  CASHIER
+  MANAGER
+}
+
+enum POStatus {
+  PENDING
+  APPROVED
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+enum StockOpnameStatus {
+  DRAFT
+  COMPLETED
+  ADJUSTED
+}
+
+// ============= CORE MODELS =============
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(CASHIER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  purchaseOrdersRequested  PurchaseOrder[] @relation("RequestedBy")
+  purchaseOrdersApproved   PurchaseOrder[] @relation("ApprovedBy")
+  stockOpnamesPerformed    StockOpname[]   @relation("PerformedBy")
+  stockOpnamesApproved     StockOpname[]   @relation("ApprovedBy")
+  inventoryTransactions    InventoryTransaction[]
+  activityLogs             ActivityLog[]
+}
+
+model Menu {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  price     Int      // in cents
+  stock     Int      @default(0)
+  image     String?
+  status    String   @default("AVAILABLE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  productIngredients ProductIngredient[]
+}
+
+model RawMaterial {
+  id        String   @id @default(cuid())
+  sku       String   @unique
+  name      String
+  unit      String   // kg, pcs, liter, gram
+  stock     Int      @default(0)
+  minStock  Int      @default(0)
+  unitCost  Int      // in cents
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  productIngredients    ProductIngredient[]
+  inventoryTransactions InventoryTransaction[]
+  purchaseOrderItems    PurchaseOrderItem[]
+  stockOpnameItems      StockOpnameItem[]
+}
+
+model ProductIngredient {
+  id              String   @id @default(cuid())
+  menuId          String
+  rawMaterialId   String
+  quantityNeeded  Int      // quantity per 1 serving
+  createdAt       DateTime @default(now())
+
+  // Relations
+  menu           Menu         @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  rawMaterial    RawMaterial  @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+
+  @@unique([menuId, rawMaterialId])
+}
+
+// ============= INVENTORY MODELS =============
+
+model InventoryTransaction {
+  id              String   @id @default(cuid())
+  rawMaterialId   String
+  type            String   // 'in', 'out', 'adjustment'
+  quantity        Int
+  reason          String?
+  referenceId     String?  // link to PO or stock opname
+  referenceType   String?  // 'purchase_order', 'stock_opname', 'manual'
+  performedBy     String
+  createdAt       DateTime @default(now())
+
+  // Relations
+  rawMaterial     RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+  user            User        @relation(fields: [performedBy], references: [id])
+}
+
+model StockOpname {
+  id        String               @id @default(cuid())
+  opnameNumber String             @unique
+  status    StockOpnameStatus    @default(DRAFT)
+  performedBy String
+  approvedBy String?
+  notes     String?
+  createdAt DateTime             @default(now())
+  completedAt DateTime?
+  updatedAt DateTime             @updatedAt
+
+  // Relations
+  items     StockOpnameItem[]
+  performedByUser User @relation("PerformedBy", fields: [performedBy], references: [id])
+  approvedByUser  User? @relation("ApprovedBy", fields: [approvedBy], references: [id])
+}
+
+model StockOpnameItem {
+  id              String   @id @default(cuid())
+  stockOpnameId   String
+  rawMaterialId   String
+  systemStock     Int
+  actualStock     Int
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  // Relations
+  stockOpname     StockOpname  @relation(fields: [stockOpnameId], references: [id], onDelete: Cascade)
+  rawMaterial     RawMaterial  @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+}
+
+// ============= PURCHASE ORDER MODELS =============
+
+model PurchaseOrder {
+  id        String      @id @default(cuid())
+  poNumber  String      @unique
+  status    POStatus    @default(PENDING)
+  totalAmount Int?      // in cents
+  requestedBy String
+  approvedBy String?
+  orderedAt DateTime?
+  receivedAt DateTime?
+  notes     String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  // Relations
+  items     PurchaseOrderItem[]
+  requestedByUser User @relation("RequestedBy", fields: [requestedBy], references: [id])
+  approvedByUser  User? @relation("ApprovedBy", fields: [approvedBy], references: [id])
+}
+
+model PurchaseOrderItem {
+  id              String   @id @default(cuid())
+  purchaseOrderId String
+  rawMaterialId   String
+  quantityRequested Int
+  quantityReceived Int    @default(0)
+  unitPrice       Int     // in cents
+  totalPrice      Int     // in cents
+  notes           String?
+
+  // Relations
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  rawMaterial     RawMaterial   @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+}
+
+// ============= AUDIT MODELS =============
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  entityType String
+  entityId  String
+  oldData   Json?
+  newData   Json?
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([entityType, entityId])
+}
