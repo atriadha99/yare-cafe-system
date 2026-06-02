@@ -6,6 +6,15 @@ import { Table, TableRow, TableCell } from "@/components/ui/Table";
 import { Button } from "@/components/ui/Button";
 import { useEffect, useState } from "react";
 
+interface PurchaseOrderItem {
+  id: string;
+  quantityRequested: number;
+}
+
+interface SupplierInfo {
+  name: string;
+}
+
 interface PurchaseOrder {
   id: string;
   poNumber: string;
@@ -13,11 +22,14 @@ interface PurchaseOrder {
   totalAmount: number;
   createdAt: string;
   requestedByUser: { name: string };
+  supplier?: SupplierInfo | null;
+  items?: PurchaseOrderItem[];
 }
 
 export default function PurchaseOrderPage() {
   const [pos, setPos] = useState<PurchaseOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchPOs = async () => {
@@ -34,6 +46,51 @@ export default function PurchaseOrderPage() {
 
     fetchPOs();
   }, []);
+
+  const refreshPOs = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/purchase-order");
+      const data = await response.json();
+      setPos(data);
+    } catch (error) {
+      console.error("Failed to refresh POs:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAction = async (po: PurchaseOrder, action: string) => {
+    setActionLoading(po.id);
+
+    const payload: Record<string, unknown> = { action };
+
+    if (action === "receive") {
+      payload.items = po.items?.map((item) => ({
+        purchaseOrderItemId: item.id,
+        quantityReceived: item.quantityRequested,
+      })) ?? [];
+    }
+
+    try {
+      const response = await fetch(`/api/purchase-order/${po.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData?.error || "Action failed");
+      }
+
+      await refreshPOs();
+    } catch (error) {
+      console.error(`Failed to ${action} PO:`, error);
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -101,7 +158,7 @@ export default function PurchaseOrderPage() {
 
         <Card>
           <Table
-            headers={["PO Number", "Status", "Amount", "Requested By", "Date", "Actions"]}
+            headers={["PO Number", "Status", "Supplier", "Amount", "Requested By", "Date", "Actions"]}
           >
             {pos.map((po) => (
               <TableRow key={po.id}>
@@ -115,6 +172,7 @@ export default function PurchaseOrderPage() {
                     {po.status}
                   </span>
                 </TableCell>
+                <TableCell>{po.supplier?.name ?? "-"}</TableCell>
                 <TableCell>
                   {po.totalAmount
                     ? `Rp ${(po.totalAmount / 100).toLocaleString("id-ID")}`
@@ -125,9 +183,43 @@ export default function PurchaseOrderPage() {
                   {new Date(po.createdAt).toLocaleDateString("id-ID")}
                 </TableCell>
                 <TableCell>
-                  <div className="flex gap-2">
-                    <button className="text-blue-600 hover:underline">View</button>
-                    <button className="text-red-600 hover:underline">Delete</button>
+                  <div className="flex flex-wrap gap-2">
+                    {po.status === "PENDING" && (
+                      <button
+                        disabled={actionLoading === po.id}
+                        onClick={() => handleAction(po, "approve")}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {actionLoading === po.id ? "Processing..." : "Approve"}
+                      </button>
+                    )}
+                    {po.status === "APPROVED" && (
+                      <button
+                        disabled={actionLoading === po.id}
+                        onClick={() => handleAction(po, "order")}
+                        className="text-purple-600 hover:underline"
+                      >
+                        {actionLoading === po.id ? "Processing..." : "Mark Ordered"}
+                      </button>
+                    )}
+                    {po.status === "ORDERED" && (
+                      <button
+                        disabled={actionLoading === po.id}
+                        onClick={() => handleAction(po, "receive")}
+                        className="text-green-600 hover:underline"
+                      >
+                        {actionLoading === po.id ? "Processing..." : "Mark Received"}
+                      </button>
+                    )}
+                    {po.status !== "RECEIVED" && po.status !== "CANCELLED" && (
+                      <button
+                        disabled={actionLoading === po.id}
+                        onClick={() => handleAction(po, "cancel")}
+                        className="text-red-600 hover:underline"
+                      >
+                        {actionLoading === po.id ? "Processing..." : "Cancel"}
+                      </button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>

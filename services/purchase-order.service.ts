@@ -14,6 +14,9 @@ export class PurchaseOrderService {
         approvedByUser: {
           select: { id: true, name: true, email: true },
         },
+        supplier: {
+          select: { id: true, name: true, email: true },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -28,6 +31,7 @@ export class PurchaseOrderService {
         },
         requestedByUser: true,
         approvedByUser: true,
+        supplier: true,
       },
     });
   }
@@ -42,6 +46,7 @@ export class PurchaseOrderService {
       data: {
         poNumber: data.poNumber,
         requestedBy: userId,
+        supplierId: data.supplierId,
         totalAmount: totalAmount,
         notes: data.notes,
         items: {
@@ -113,7 +118,7 @@ export class PurchaseOrderService {
             reason: `Received from PO: ${id}`,
             referenceId: id,
             referenceType: "purchase_order",
-            performedBy: "system", // Should be passed from context
+            performedBy: userId,
           },
         });
 

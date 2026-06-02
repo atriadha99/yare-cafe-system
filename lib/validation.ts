@@ -46,6 +46,7 @@ export const createInventoryTransactionSchema = z.object({
 // Purchase Order schemas
 export const createPurchaseOrderSchema = z.object({
   poNumber: z.string().min(1, "PO number is required"),
+  supplierId: z.string().min(1, "Supplier is required").optional(),
   items: z.array(
     z.object({
       rawMaterialId: z.string(),
@@ -58,6 +59,13 @@ export const createPurchaseOrderSchema = z.object({
 
 export const approvePurchaseOrderSchema = z.object({
   totalAmount: z.number().min(0, "Total amount must be positive").optional(),
+});
+
+export const createSupplierSchema = z.object({
+  name: z.string().min(1, "Supplier name is required"),
+  email: z.string().email("Invalid email address").optional(),
+  phone: z.string().optional(),
+  address: z.string().optional(),
 });
 
 export const receivePurchaseOrderSchema = z.object({

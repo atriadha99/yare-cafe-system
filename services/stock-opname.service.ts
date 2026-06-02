@@ -78,7 +78,7 @@ export class StockOpnameService {
 
     // Apply adjustments
     for (const item of opname.items) {
-      const diff = item.difference; // difference = actual - system
+      const diff = item.actualStock - item.systemStock;
 
       if (diff !== 0) {
         // Create inventory transaction for the difference

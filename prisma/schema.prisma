@@ -2,7 +2,7 @@
 // Using Neon PostgreSQL as primary database
 
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../node_modules/.prisma/client"
 }
 
@@ -157,6 +157,7 @@ model PurchaseOrder {
   totalAmount Int?      // in cents
   requestedBy String
   approvedBy String?
+  supplierId String?
   orderedAt DateTime?
   receivedAt DateTime?
   notes     String?
@@ -167,6 +168,7 @@ model PurchaseOrder {
   items     PurchaseOrderItem[]
   requestedByUser User @relation("RequestedBy", fields: [requestedBy], references: [id])
   approvedByUser  User? @relation("ApprovedBy", fields: [approvedBy], references: [id])
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
 }
 
 model PurchaseOrderItem {
@@ -185,6 +187,18 @@ model PurchaseOrderItem {
 }
 
 // ============= AUDIT MODELS =============
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?  @unique
+  phone     String?
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchaseOrders PurchaseOrder[]
+}
 
 model ActivityLog {
   id        String   @id @default(cuid())
