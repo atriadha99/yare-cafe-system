@@ -20,8 +20,8 @@ export default function LoginPage() {
 
     const formData = new FormData(e.currentTarget);
     const result = await signIn("credentials", {
-      email: formData.get("email"),
-      password: formData.get("password"),
+      email: formData.get("email")?.toString() || "",
+      password: formData.get("password")?.toString() || "",
       redirect: false,
     });
 
@@ -29,6 +29,7 @@ export default function LoginPage() {
       setError(result.error);
       setIsLoading(false);
     } else if (result?.ok) {
+      router.refresh();
       router.push("/dashboard");
     }
   }
@@ -43,10 +44,10 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
-            type="email"
+            type="text"
             name="email"
-            label="Email"
-            placeholder="Enter your email"
+            label="Username / Email"
+            placeholder="Enter your username or email"
             required
           />
 
